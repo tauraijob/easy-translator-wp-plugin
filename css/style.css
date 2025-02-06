@@ -1,0 +1,22 @@
+#est-language-selector {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+}
+
+#est-language-select {
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: white;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+#est-language-select:hover {
+    border-color: #999;
+}
+
+#est-language-select:focus {
+    outline: none;
+    border-color: #0073aa;
+    box-shadow: 0 0 2px rgba(0,115,170,0.8);
+} 
