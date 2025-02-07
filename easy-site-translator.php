@@ -47,13 +47,19 @@ function est_sanitize_input($data) {
 
 // Add Google Translate script
 function est_add_translate_script() {
+    $included_langs = get_option('est_included_languages', ['en', 'sn', 'zu', 'xh', 'af']);
+    if (!is_array($included_langs)) {
+        $included_langs = explode(',', $included_langs);
+    }
+    $languages = implode(',', $included_langs);
+    $default_lang = get_option('est_default_language', 'auto');
     ?>
     <div id="google_translate_element"></div>
     <script type="text/javascript">
         function googleTranslateElementInit() {
             new google.translate.TranslateElement({
-                pageLanguage: 'auto',
-                includedLanguages: 'en,sn,zu,xh,af,ny,st,sw,ar,fr,pt,es', // Shona (sn) and other African languages
+                pageLanguage: '<?php echo esc_js($default_lang); ?>',
+                includedLanguages: '<?php echo esc_js($languages); ?>',
                 layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
                 autoDisplay: false,
                 multilanguagePage: true,
@@ -262,6 +268,76 @@ function est_register_settings() {
     );
 }
 add_action('admin_init', 'est_register_settings');
+
+// Add the missing callback functions after est_register_settings()
+
+// Section callback
+function est_section_callback() {
+    echo '<p>Customize how the translator widget appears and functions on your site.</p>';
+}
+
+// Position field callback
+function est_position_callback() {
+    $position = get_option('est_widget_position', 'bottom-right');
+    ?>
+    <select name="est_widget_position" id="est_widget_position">
+        <option value="bottom-right" <?php selected($position, 'bottom-right'); ?>>Bottom Right</option>
+        <option value="bottom-left" <?php selected($position, 'bottom-left'); ?>>Bottom Left</option>
+        <option value="top-right" <?php selected($position, 'top-right'); ?>>Top Right</option>
+        <option value="top-left" <?php selected($position, 'top-left'); ?>>Top Left</option>
+    </select>
+    <?php
+}
+
+// Default language field callback
+function est_default_language_callback() {
+    $default_lang = get_option('est_default_language', 'auto');
+    ?>
+    <select name="est_default_language" id="est_default_language">
+        <option value="auto" <?php selected($default_lang, 'auto'); ?>>Auto Detect</option>
+        <option value="en" <?php selected($default_lang, 'en'); ?>>English</option>
+        <option value="sn" <?php selected($default_lang, 'sn'); ?>>Shona</option>
+        <option value="zu" <?php selected($default_lang, 'zu'); ?>>Zulu</option>
+        <option value="xh" <?php selected($default_lang, 'xh'); ?>>Xhosa</option>
+        <option value="af" <?php selected($default_lang, 'af'); ?>>Afrikaans</option>
+    </select>
+    <?php
+}
+
+// Included languages field callback
+function est_languages_callback() {
+    $included_langs = get_option('est_included_languages', ['en', 'sn', 'zu', 'xh', 'af']);
+    if (!is_array($included_langs)) {
+        $included_langs = explode(',', $included_langs);
+    }
+    
+    $available_languages = [
+        'en' => 'English',
+        'sn' => 'Shona',
+        'zu' => 'Zulu',
+        'xh' => 'Xhosa',
+        'af' => 'Afrikaans',
+        'ny' => 'Nyanja',
+        'st' => 'Sotho',
+        'sw' => 'Swahili',
+        'ar' => 'Arabic',
+        'fr' => 'French',
+        'pt' => 'Portuguese',
+        'es' => 'Spanish'
+    ];
+    
+    foreach ($available_languages as $code => $name) {
+        ?>
+        <label style="display: block; margin-bottom: 5px;">
+            <input type="checkbox" 
+                   name="est_included_languages[]" 
+                   value="<?php echo esc_attr($code); ?>"
+                   <?php checked(in_array($code, $included_langs)); ?>>
+            <?php echo esc_html($name); ?>
+        </label>
+        <?php
+    }
+}
 
 // Add shortcode support
 function est_translate_shortcode($atts) {
