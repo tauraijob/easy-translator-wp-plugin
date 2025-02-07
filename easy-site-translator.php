@@ -1,14 +1,48 @@
 <?php
-/*
-Plugin Name: WebDev Easy Site Translator
-Description: Adds free Google Translate widget to your WordPress site with Shona support
-Version: 1.0
-Author: Tau
-*/
+/**
+ * Plugin Name: WebDev Easy Site Translator
+ * Description: Adds free Google Translate widget to your WordPress site with Shona support
+ * Version: 1.0
+ * Author: Tau
+ * License: GPL v2 or later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ */
+
+// If this file is called directly, abort.
+if (!defined('WPINC')) {
+    die;
+}
+
+// Define plugin constants
+define('EST_VERSION', '1.0.0');
+define('EST_PLUGIN_DIR', plugin_dir_path(__FILE__));
+define('EST_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 // Prevent direct access
 if (!defined('ABSPATH')) {
     exit;
+}
+
+// Add nonce verification for forms
+function est_verify_nonce($nonce_name) {
+    if (!isset($_REQUEST['_wpnonce']) || !wp_verify_nonce($_REQUEST['_wpnonce'], $nonce_name)) {
+        wp_die('Security check failed');
+    }
+}
+
+// Add capability checking
+function est_verify_capability() {
+    if (!current_user_can('manage_options')) {
+        wp_die('You do not have sufficient permissions to access this page.');
+    }
+}
+
+// Sanitize input data
+function est_sanitize_input($data) {
+    if (is_array($data)) {
+        return array_map('est_sanitize_input', $data);
+    }
+    return sanitize_text_field($data);
 }
 
 // Add Google Translate script
@@ -72,12 +106,20 @@ add_action('wp_footer', 'est_add_translate_script');
 
 // Add custom CSS to style the widget
 function est_add_custom_css() {
+    $position = get_option('est_widget_position', 'bottom-right');
+    $positions = [
+        'bottom-right' => ['bottom: 20px;', 'right: 20px;'],
+        'bottom-left' => ['bottom: 20px;', 'left: 20px;'],
+        'top-right' => ['top: 20px;', 'right: 20px;'],
+        'top-left' => ['top: 20px;', 'left: 20px;']
+    ];
+    
+    $pos = $positions[$position] ?? $positions['bottom-right'];
     ?>
     <style>
         #google_translate_element {
             position: fixed;
-            bottom: 20px;
-            right: 20px;
+            <?php echo esc_html($pos[0] . $pos[1]); ?>
             z-index: 1000;
             background: white;
             padding: 10px;
@@ -139,4 +181,126 @@ function est_enable_admin_translation() {
         add_action('admin_head', 'est_add_custom_css');
     }
 }
-add_action('init', 'est_enable_admin_translation'); 
+add_action('init', 'est_enable_admin_translation');
+
+// Use these functions in your form handling:
+add_action('admin_post_est_save_settings', function() {
+    est_verify_nonce('est_settings_nonce');
+    est_verify_capability();
+    
+    $data = est_sanitize_input($_POST);
+    // Process your data here
+    
+    wp_redirect(admin_url('admin.php?page=est-settings&updated=true'));
+    exit;
+});
+
+// Add settings page
+function est_add_settings_page() {
+    add_options_page(
+        'Easy Site Translator Settings',
+        'Site Translator',
+        'manage_options',
+        'est-settings',
+        'est_render_settings_page'
+    );
+}
+add_action('admin_menu', 'est_add_settings_page');
+
+// Render settings page
+function est_render_settings_page() {
+    est_verify_capability();
+    ?>
+    <div class="wrap">
+        <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
+        <form method="post" action="options.php">
+            <?php
+            settings_fields('est_options');
+            do_settings_sections('est-settings');
+            submit_button();
+            ?>
+        </form>
+    </div>
+    <?php
+}
+
+// Register settings
+function est_register_settings() {
+    register_setting('est_options', 'est_widget_position', 'est_sanitize_input');
+    register_setting('est_options', 'est_default_language', 'est_sanitize_input');
+    register_setting('est_options', 'est_included_languages', 'est_sanitize_input');
+
+    add_settings_section(
+        'est_main_section',
+        'Widget Settings',
+        'est_section_callback',
+        'est-settings'
+    );
+
+    add_settings_field(
+        'est_widget_position',
+        'Widget Position',
+        'est_position_callback',
+        'est-settings',
+        'est_main_section'
+    );
+
+    add_settings_field(
+        'est_default_language',
+        'Default Language',
+        'est_default_language_callback',
+        'est-settings',
+        'est_main_section'
+    );
+
+    add_settings_field(
+        'est_included_languages',
+        'Included Languages',
+        'est_languages_callback',
+        'est-settings',
+        'est_main_section'
+    );
+}
+add_action('admin_init', 'est_register_settings');
+
+// Add shortcode support
+function est_translate_shortcode($atts) {
+    ob_start();
+    est_add_translate_script();
+    return ob_get_clean();
+}
+add_shortcode('site_translator', 'est_translate_shortcode');
+
+// Add browser language detection
+function est_detect_browser_language() {
+    if (!isset($_COOKIE['googtrans'])) {
+        $browser_lang = substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2);
+        $supported_langs = ['en', 'sn', 'zu', 'xh', 'af', 'ny', 'st', 'sw', 'ar', 'fr', 'pt', 'es'];
+        
+        if (in_array($browser_lang, $supported_langs)) {
+            setcookie('googtrans', '/auto/' . $browser_lang, time() + (86400 * 30), '/', '', true, true);
+        }
+    }
+}
+add_action('init', 'est_detect_browser_language', 1);
+
+// Add translation usage tracking
+function est_track_translation() {
+    ?>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof jQuery !== 'undefined') {
+            jQuery('.goog-te-combo').on('change', function() {
+                if (typeof gtag === 'function') {
+                    gtag('event', 'translate', {
+                        'event_category': 'Site Translator',
+                        'event_label': this.value
+                    });
+                }
+            });
+        }
+    });
+    </script>
+    <?php
+}
+add_action('wp_footer', 'est_track_translation'); 
